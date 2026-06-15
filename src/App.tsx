@@ -1,162 +1,157 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Bot, Cookie, Rocket, CheckCircle2, ChevronRight, RefreshCw, 
-  Terminal, Code2, Globe, Cpu, Trophy, Play, TerminalSquare, AlertTriangle, ArrowRight, ArrowDown, ArrowUp, ArrowLeft
+  Bot, Rocket, CheckCircle2, TerminalSquare, AlertTriangle, ArrowUp, ArrowDown, 
+  Sparkles, Brain, Code2, Cpu, Globe, ArrowRight, Lightbulb, Star
 } from 'lucide-react';
 
-// --- AUDIO SYSTEM (Ambient Synth) ---
+// --- INJECT FONTS AND GLOBAL STYLES ---
+const injectStyles = () => {
+  if (document.getElementById('codequest-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'codequest-styles';
+  style.innerHTML = `
+    @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Kalam:wght@400;700&display=swap');
+
+    body {
+      background-color: #f8fafc;
+      background-image: radial-gradient(#cbd5e1 2px, transparent 2px);
+      background-size: 30px 30px;
+    }
+    
+    .font-chunky { font-family: 'Fredoka', sans-serif; }
+    .font-hand { font-family: 'Kalam', cursive; }
+
+    .highlighter-yellow {
+      background: linear-gradient(180deg, rgba(255,255,255,0) 50%, #fde047 50%);
+    }
+    .highlighter-pink {
+      background: linear-gradient(180deg, rgba(255,255,255,0) 50%, #f9a8d4 50%);
+    }
+
+    /* Bouncy Animations */
+    @keyframes bounce-in {
+      0% { transform: scale(0.8); opacity: 0; }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-bounce-in { animation: bounce-in 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0) rotate(-2deg); }
+      50% { transform: translateY(-10px) rotate(2deg); }
+    }
+    .animate-float { animation: float 3s ease-in-out infinite; }
+
+    @keyframes shake-cute {
+      0%, 100% { transform: translateX(0) rotate(0deg); }
+      25% { transform: translateX(-4px) rotate(-3deg); }
+      75% { transform: translateX(4px) rotate(3deg); }
+    }
+    .animate-shake-cute { animation: shake-cute 0.4s ease-in-out 2; }
+    
+    /* Scene transitions */
+    .scene-transition { transition: opacity 0.4s ease-in-out, transform 0.4s ease-in-out; }
+    .scene-out { opacity: 0; transform: scale(0.95); }
+    .scene-in { opacity: 1; transform: scale(1); }
+  `;
+  document.head.appendChild(style);
+};
+
+// --- AUDIO SYSTEM (Success sounds only) ---
 class AudioEngine {
   constructor() {
     this.ctx = null;
-    this.gainNode = null;
-    this.isPlaying = false;
-  }
-  start() {
-    if (this.isPlaying) return;
-    try {
-      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-      this.gainNode = this.ctx.createGain();
-      this.gainNode.gain.setValueAtTime(0, this.ctx.currentTime);
-      this.gainNode.connect(this.ctx.destination);
-      
-      this.isPlaying = true;
-    } catch (e) {
-      console.log("Audio init failed", e);
-    }
   }
   playSuccess() {
-    if (!this.ctx) return;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(440, this.ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.1);
-    gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-    osc.start();
-    osc.stop(this.ctx.currentTime + 0.5);
+    try {
+      if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(440, this.ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.3);
+    } catch (e) { console.log(e); }
+  }
+  playPop() {
+    try {
+      if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(200, this.ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.1);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.1);
+    } catch (e) { console.log(e); }
   }
 }
 const audio = new AudioEngine();
 
-// --- CANVAS BACKGROUND ---
-const Starfield = () => {
-  const canvasRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    let animationFrameId;
-    let particles = [];
-
-    const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
-    window.addEventListener('resize', resize);
-    resize();
-
-    for (let i = 0; i < 150; i++) {
-      particles.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        radius: Math.random() * 1.5,
-        vx: (Math.random() - 0.5) * 0.2,
-        vy: (Math.random() - 0.5) * 0.2,
-        alpha: Math.random()
-      });
-    }
-
-    const render = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Draw cinematic gradient
-      const grad = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 0, canvas.width/2, canvas.height/2, canvas.width);
-      grad.addColorStop(0, '#0a0a1a');
-      grad.addColorStop(1, '#020205');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      particles.forEach(p => {
-        p.x += p.vx;
-        p.y += p.vy;
-        p.alpha += (Math.random() - 0.5) * 0.05;
-        p.alpha = Math.max(0.1, Math.min(0.8, p.alpha));
-
-        if (p.x < 0) p.x = canvas.width;
-        if (p.x > canvas.width) p.x = 0;
-        if (p.y < 0) p.y = canvas.height;
-        if (p.y > canvas.height) p.y = 0;
-
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(200, 220, 255, ${p.alpha})`;
-        ctx.fill();
-      });
-      animationFrameId = window.requestAnimationFrame(render);
-    };
-    render();
-
-    return () => {
-      window.removeEventListener('resize', resize);
-      window.cancelAnimationFrame(animationFrameId);
-    };
-  }, []);
-
-  return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-0" />;
-};
-
-// --- REUSABLE COMPONENTS ---
-const GlassCard = ({ children, className = "" }) => (
-  <div className={`bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 shadow-2xl ${className}`}>
+// --- REUSABLE COMPONENTS (Doodle/Pixar Style) ---
+const DoodleCard = ({ children, className = "", rotation = "0" }) => (
+  <div 
+    className={`bg-white border-4 border-slate-800 rounded-3xl p-6 md:p-8 shadow-[8px_8px_0_#1e293b] relative transition-transform duration-300 hover:-translate-y-1 hover:shadow-[12px_12px_0_#1e293b] ${className}`}
+    style={{ transform: `rotate(${rotation}deg)` }}
+  >
     {children}
   </div>
 );
 
-const Button = ({ onClick, children, variant = "primary", className = "" }) => {
-  const base = "px-6 py-3 rounded-full font-bold tracking-widest uppercase transition-all duration-300 transform hover:scale-105 active:scale-95";
-  const variants = {
-    primary: "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_0_20px_rgba(79,70,229,0.4)] hover:shadow-[0_0_30px_rgba(79,70,229,0.7)]",
-    secondary: "bg-white/10 hover:bg-white/20 text-white border border-white/20",
-    success: "bg-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)]"
-  };
-  return (
-    <button onClick={() => { audio.playSuccess(); onClick(); }} className={`${base} ${variants[variant]} ${className}`}>
-      {children}
-    </button>
-  );
-};
+const DoodleButton = ({ onClick, children, color = "bg-yellow-300", className = "" }) => (
+  <button 
+    onClick={() => { audio.playPop(); onClick(); }} 
+    className={`font-chunky text-xl uppercase tracking-wider px-8 py-4 border-4 border-slate-800 rounded-2xl shadow-[4px_4px_0_#1e293b] active:shadow-[0_0_0_#1e293b] active:translate-y-1 active:translate-x-1 transition-all ${color} ${className}`}
+  >
+    {children}
+  </button>
+);
+
+const Sticker = ({ icon: Icon, emoji, color, className="" }) => (
+  <div className={`absolute w-16 h-16 rounded-full border-4 border-slate-800 shadow-[4px_4px_0_#1e293b] flex items-center justify-center text-3xl animate-float ${color} ${className}`}>
+    {Icon ? <Icon size={28} className="text-slate-800" strokeWidth={3} /> : emoji}
+  </div>
+);
 
 // --- SCENES ---
 
 // Scene 0: Landing
 const IntroScene = ({ onNext }) => {
-  const [text, setText] = useState("");
-  const fullText = "Before computers could think...\nHumans had to learn how to think clearly.\n\nCoding is not typing.\nCoding is thinking.";
-  
-  useEffect(() => {
-    let i = 0;
-    const interval = setInterval(() => {
-      setText(fullText.substring(0, i));
-      i++;
-      if (i > fullText.length) clearInterval(interval);
-    }, 40);
-    return () => clearInterval(interval);
-  }, []);
-
   return (
-    <div className="flex flex-col items-center justify-center h-screen text-center z-10 relative px-4">
-      <h1 className="text-3xl md:text-5xl font-light text-white whitespace-pre-line leading-relaxed mb-12 h-48">
-        {text}
-        <span className="animate-pulse">_</span>
-      </h1>
-      {text.length >= fullText.length && (
-        <div className="animate-fade-in-up mt-8">
-          <Button onClick={onNext} className="text-lg px-8 py-4">BEGIN JOURNEY</Button>
+    <div className="flex flex-col items-center justify-center min-h-screen relative px-4 py-12 animate-bounce-in">
+      <Sticker emoji="🚀" color="bg-pink-400" className="-top-4 -left-4 md:top-20 md:left-20" />
+      <Sticker emoji="💡" color="bg-yellow-300" className="top-20 right-4 md:top-20 md:right-32" style={{animationDelay: "1s"}} />
+      <Sticker icon={Brain} color="bg-sky-400" className="bottom-20 left-10 md:bottom-32 md:left-40" style={{animationDelay: "0.5s"}} />
+      
+      <DoodleCard className="max-w-3xl w-full text-center my-8 z-10" rotation="-1">
+        <div className="inline-block px-4 py-1 bg-lime-300 border-2 border-slate-800 rounded-full font-chunky text-slate-800 mb-6 transform -rotate-2">
+          MODULE 1: THE BASICS
         </div>
-      )}
+        
+        <h1 className="text-5xl md:text-7xl font-chunky text-slate-800 mb-8 leading-tight">
+          What is <span className="text-pink-500 underline decoration-8 underline-offset-4">Coding?</span>
+        </h1>
+        
+        <div className="font-hand text-2xl md:text-3xl text-slate-600 mb-12 space-y-4">
+          <p>Before computers could think...</p>
+          <p>Humans had to learn how to <span className="highlighter-yellow px-2 font-bold text-slate-800">think clearly.</span></p>
+          <p className="text-blue-600 font-bold mt-8">Coding is NOT typing.</p>
+          <p className="text-pink-500 font-bold">Coding is THINKING! 🧠✨</p>
+        </div>
+
+        <DoodleButton onClick={onNext} color="bg-blue-400 text-white">
+          Start Journey! 🚀
+        </DoodleButton>
+      </DoodleCard>
     </div>
   );
 };
@@ -166,49 +161,57 @@ const RobotSandwichScene = ({ onNext }) => {
   const [stage, setStage] = useState(0);
 
   const dialogs = [
-    { q: "Can this robot make a peanut butter sandwich?", btn: true },
-    { text: "Robot: 'What is bread?'", sub: "Wait, what?" },
-    { text: "Robot: 'Where is bread?'", sub: "It doesn't know where the kitchen is." },
-    { text: "Robot: 'How do I open the jar?'", sub: "It doesn't know how to twist." },
-    { text: "Computers are incredibly powerful.\nBut they are incredibly stupid.\nThey only follow EXACT instructions.", btnNext: true }
+    { text: "Can this robot make a peanut butter sandwich?", btn: true, emoji: "🥪" },
+    { text: "Robot: 'What is bread?'", sub: "Wait, what?", emoji: "🍞❓" },
+    { text: "Robot: 'Where is bread?'", sub: "It doesn't know where the kitchen is!", emoji: "🗺️" },
+    { text: "Robot: 'How do I open the jar?'", sub: "It doesn't know how to twist!", emoji: "🥜" },
+    { text: "Computers are incredibly powerful.\nBut they are incredibly stupid.\nThey only follow EXACT instructions.", btnNext: true, emoji: "🤯" }
   ];
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen z-10 relative px-4">
-      <Bot size={100} className={`text-blue-400 mb-8 transition-all duration-500 ${stage > 0 ? 'animate-bounce' : ''}`} />
+    <div className="flex flex-col items-center justify-center min-h-screen relative px-4 py-12 animate-bounce-in">
+      <div className={`relative mb-8 transition-transform duration-500 ${stage > 0 ? 'animate-bounce' : ''}`}>
+        <div className="w-32 h-32 bg-sky-300 rounded-3xl border-4 border-slate-800 flex items-center justify-center shadow-[6px_6px_0_#1e293b]">
+          <Bot size={64} className="text-slate-800" strokeWidth={2.5} />
+        </div>
+        <div className="absolute -top-6 -right-6 text-4xl bg-white rounded-full border-4 border-slate-800 p-2 shadow-[4px_4px_0_#1e293b]">
+          {dialogs[stage].emoji}
+        </div>
+      </div>
       
-      <GlassCard className="max-w-2xl w-full text-center min-h-[300px] flex flex-col items-center justify-center">
-        <h2 className="text-2xl md:text-4xl font-light text-white mb-4 whitespace-pre-line leading-tight">
-          {dialogs[stage].q || dialogs[stage].text}
+      <DoodleCard className="max-w-2xl w-full text-center" rotation="1">
+        <h2 className="text-3xl md:text-5xl font-chunky text-slate-800 mb-4 whitespace-pre-line leading-tight">
+          {dialogs[stage].text}
         </h2>
-        {dialogs[stage].sub && <p className="text-gray-400 text-lg mb-8">{dialogs[stage].sub}</p>}
+        {dialogs[stage].sub && (
+          <p className="font-hand text-2xl text-pink-500 font-bold mb-8">{dialogs[stage].sub}</p>
+        )}
         
         {dialogs[stage].btn && (
-          <div className="flex gap-4 mt-8">
-            <Button onClick={() => setStage(1)}>YES</Button>
-            <Button onClick={() => setStage(1)} variant="secondary">NO</Button>
+          <div className="flex justify-center gap-6 mt-8">
+            <DoodleButton onClick={() => setStage(1)} color="bg-green-400">YES!</DoodleButton>
+            <DoodleButton onClick={() => setStage(1)} color="bg-red-400">NOPE</DoodleButton>
           </div>
         )}
         
         {!dialogs[stage].btn && !dialogs[stage].btnNext && (
           <div className="mt-8">
-            <Button onClick={() => setStage(s => s + 1)} variant="secondary">Explain More</Button>
+            <DoodleButton onClick={() => setStage(s => s + 1)} color="bg-yellow-300">Tell Me More ➡️</DoodleButton>
           </div>
         )}
 
         {dialogs[stage].btnNext && (
           <div className="mt-8">
-            <Button onClick={onNext}>I Understand</Button>
+            <DoodleButton onClick={onNext} color="bg-pink-400 text-white">I Got It! ✨</DoodleButton>
           </div>
         )}
-      </GlassCard>
+      </DoodleCard>
     </div>
   );
 };
 
-// Reusable Grid World Engine
-const GridWorld = ({ title, desc, gridSize = 5, startPos, endPos, obstacles = [], prefilledCode = "", initialDir = 0, onComplete }) => {
-  // dir: 0=up, 1=right, 2=down, 3=left
+// Reusable Grid World Engine (Doodle Version)
+const GridWorld = ({ title, desc, gridSize = 5, startPos, endPos, obstacles = [], prefilledCode = "", initialDir = 0, onComplete, isBugged = false }) => {
   const [robot, setRobot] = useState({ ...startPos, dir: initialDir });
   const [code, setCode] = useState(prefilledCode);
   const [isRunning, setIsRunning] = useState(false);
@@ -217,12 +220,11 @@ const GridWorld = ({ title, desc, gridSize = 5, startPos, endPos, obstacles = []
 
   const runCode = async () => {
     setIsRunning(true);
-    setStatus("Executing...");
+    setStatus("Executing steps...");
     setCrashed(false);
     setRobot({ ...startPos, dir: initialDir });
     
-    // Slight delay to show reset
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 400));
 
     const lines = code.toLowerCase().split('\n').map(l => l.trim()).filter(l => l);
     let curr = { ...startPos, dir: initialDir };
@@ -240,131 +242,135 @@ const GridWorld = ({ title, desc, gridSize = 5, startPos, endPos, obstacles = []
         next.dir = (curr.dir + 3) % 4;
       } else if (cmd.includes('right')) {
         next.dir = (curr.dir + 1) % 4;
-      } else if (cmd.includes('jump')) {
-         if (curr.dir === 0) next.y -= 2;
-         if (curr.dir === 1) next.x += 2;
-         if (curr.dir === 2) next.y += 2;
-         if (curr.dir === 3) next.x -= 2;
       }
 
-      // Check boundaries
       if (next.x < 0 || next.x >= gridSize || next.y < 0 || next.y >= gridSize) {
-        setStatus("CRASH! Out of bounds.");
-        setCrashed(true);
-        setIsRunning(false);
-        return;
+        setStatus("💥 CRASH! Out of bounds.");
+        setCrashed(true); setIsRunning(false); return;
       }
 
-      // Check obstacles
       if (obstacles.some(o => o.x === next.x && o.y === next.y)) {
-        setStatus("CRASH! Hit an obstacle.");
-        setCrashed(true);
-        setIsRunning(false);
-        return;
+        setStatus("💥 CRASH! Hit a wall.");
+        setCrashed(true); setIsRunning(false); return;
       }
 
       curr = next;
       setRobot(curr);
-      await new Promise(r => setTimeout(r, 600)); // Animation delay
+      audio.playPop();
+      await new Promise(r => setTimeout(r, 500));
     }
 
     if (curr.x === endPos.x && curr.y === endPos.y) {
-      setStatus("MISSION ACCOMPLISHED!");
+      setStatus("🎉 MISSION ACCOMPLISHED!");
+      audio.playSuccess();
       setTimeout(onComplete, 2000);
     } else {
-      setStatus("Mission Failed. Target not reached.");
+      setStatus("🤔 Mission Failed. Target not reached.");
       setIsRunning(false);
     }
   };
 
-  const addCmd = (cmd) => {
-    setCode(prev => prev + (prev.endsWith('\n') || prev === '' ? '' : '\n') + cmd + '\n');
-  };
-
   return (
-    <div className="flex flex-col items-center justify-center w-full max-w-5xl mx-auto h-screen z-10 relative px-4">
-      <div className="text-center mb-6">
-        <h2 className="text-3xl font-bold text-white mb-2">{title}</h2>
-        <p className="text-gray-400">{desc}</p>
+    <div className="flex flex-col items-center justify-center min-h-screen relative px-4 py-12 w-full max-w-6xl mx-auto animate-bounce-in">
+      <div className="text-center mb-8 relative z-10">
+        <span className="inline-block px-4 py-1 bg-yellow-300 border-2 border-slate-800 rounded-full font-chunky text-slate-800 mb-4 transform -rotate-2">
+          {isBugged ? "DEBUGGING LAB 🐞" : "ALGORITHM BUILDER 🛠️"}
+        </span>
+        <h2 className="text-4xl md:text-5xl font-chunky text-slate-800 mb-4">{title}</h2>
+        <p className="font-hand text-2xl text-slate-600 bg-white px-4 py-2 rounded-xl border-2 border-slate-300 inline-block">{desc}</p>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-8 w-full">
-        {/* Editor */}
-        <GlassCard className="flex-1 flex flex-col">
-          <div className="flex justify-between items-center mb-4 text-gray-400 text-sm">
-            <span>Terminal</span>
+      <div className="flex flex-col lg:flex-row gap-8 w-full z-10 items-center justify-center">
+        {/* Editor (Sticky Note Style) */}
+        <div className="flex-1 w-full max-w-md bg-yellow-200 border-4 border-slate-800 p-6 rounded-br-3xl rounded-tl-2xl shadow-[8px_8px_0_#1e293b] relative transform -rotate-1">
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-16 h-6 bg-pink-400/50 -mt-8 rotate-2"></div> {/* Tape */}
+          
+          <div className="flex justify-between items-center mb-4">
+            <span className="font-chunky text-xl text-slate-800">📝 Commands:</span>
             <div className="flex gap-2">
-              <button onClick={() => addCmd('move forward')} className="bg-white/10 px-2 py-1 rounded hover:bg-white/20 text-xs">Forward</button>
-              <button onClick={() => addCmd('turn left')} className="bg-white/10 px-2 py-1 rounded hover:bg-white/20 text-xs">Left</button>
-              <button onClick={() => addCmd('turn right')} className="bg-white/10 px-2 py-1 rounded hover:bg-white/20 text-xs">Right</button>
+              <button onClick={() => setCode(p => p + 'move forward\n')} className="bg-white border-2 border-slate-800 rounded px-2 py-1 font-chunky text-sm hover:bg-sky-200 active:translate-y-1 transition-all">⬆️ Fwd</button>
+              <button onClick={() => setCode(p => p + 'turn left\n')} className="bg-white border-2 border-slate-800 rounded px-2 py-1 font-chunky text-sm hover:bg-sky-200 active:translate-y-1 transition-all">⬅️ Lft</button>
+              <button onClick={() => setCode(p => p + 'turn right\n')} className="bg-white border-2 border-slate-800 rounded px-2 py-1 font-chunky text-sm hover:bg-sky-200 active:translate-y-1 transition-all">➡️ Rgt</button>
             </div>
           </div>
+          
           <textarea
             value={code}
             onChange={(e) => setCode(e.target.value)}
             disabled={isRunning}
-            className="w-full h-64 bg-black/50 text-green-400 font-mono p-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-            placeholder="Type instructions here..."
+            className="w-full h-64 bg-transparent border-none font-hand text-3xl text-slate-800 leading-relaxed focus:ring-0 resize-none placeholder-slate-400"
+            style={{ 
+              backgroundSize: '100% 2.5rem',
+              backgroundImage: 'linear-gradient(transparent 2.4rem, #94a3b8 2.4rem, #94a3b8 2.5rem, transparent 2.5rem)',
+              lineHeight: '2.5rem'
+            }}
+            placeholder="Write steps here..."
           />
-          <div className="mt-4 flex justify-between items-center">
-            <Button onClick={() => setCode('')} variant="secondary" className="px-4 py-2 text-sm">Clear</Button>
-            <Button onClick={runCode} disabled={isRunning} className="px-8 py-2">
-              {isRunning ? 'Running...' : 'Run Code'}
-            </Button>
+          
+          <div className="mt-6 flex justify-between items-center">
+            <button onClick={() => setCode('')} className="font-chunky text-slate-600 underline">Clear</button>
+            <DoodleButton onClick={runCode} disabled={isRunning} color={isRunning ? "bg-slate-300" : "bg-green-400"} className="px-6 py-2 text-lg">
+              {isRunning ? 'Running...' : 'RUN CODE 🚀'}
+            </DoodleButton>
           </div>
-        </GlassCard>
+        </div>
 
-        {/* Visualizer */}
-        <GlassCard className="flex-1 flex flex-col items-center justify-center bg-black/40">
-          <div className="relative" style={{ width: gridSize * 50, height: gridSize * 50 }}>
-            {/* Grid Lines */}
+        {/* Visualizer (Graph Paper Style) */}
+        <DoodleCard className="flex-none p-4 md:p-8 bg-sky-50" rotation="1">
+          <div className="relative border-4 border-slate-800 bg-white rounded-xl overflow-hidden shadow-inner" style={{ width: gridSize * 60, height: gridSize * 60 }}>
+            {/* Grid */}
             {Array.from({ length: gridSize }).map((_, y) => (
               Array.from({ length: gridSize }).map((_, x) => (
-                <div key={`${x}-${y}`} className="absolute border border-white/10"
-                     style={{ left: x * 50, top: y * 50, width: 50, height: 50 }} />
+                <div key={`${x}-${y}`} className="absolute border border-sky-100"
+                     style={{ left: x * 60, top: y * 60, width: 60, height: 60 }} />
               ))
             ))}
             
             {/* Obstacles */}
             {obstacles.map((o, i) => (
-              <div key={`obs-${i}`} className="absolute bg-red-500/50 flex items-center justify-center rounded-md"
-                   style={{ left: o.x * 50 + 2, top: o.y * 50 + 2, width: 46, height: 46 }}>
-                <AlertTriangle size={24} className="text-red-300" />
+              <div key={`obs-${i}`} className="absolute flex items-center justify-center text-4xl"
+                   style={{ left: o.x * 60, top: o.y * 60, width: 60, height: 60 }}>
+                🧱
               </div>
             ))}
 
-            {/* End Pos */}
-            <div className="absolute flex items-center justify-center animate-pulse"
-                 style={{ left: endPos.x * 50, top: endPos.y * 50, width: 50, height: 50 }}>
-              <Trophy className="text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.8)]" />
+            {/* Target */}
+            <div className="absolute flex items-center justify-center text-4xl animate-bounce"
+                 style={{ left: endPos.x * 60, top: endPos.y * 60, width: 60, height: 60 }}>
+              ⭐
             </div>
 
             {/* Robot */}
-            <div className={`absolute flex items-center justify-center transition-all duration-500 ${crashed ? 'animate-shake' : ''}`}
+            <div className={`absolute flex items-center justify-center transition-all duration-400 ${crashed ? 'animate-shake-cute' : ''}`}
                  style={{ 
-                   left: robot.x * 50, top: robot.y * 50, width: 50, height: 50,
+                   left: robot.x * 60, top: robot.y * 60, width: 60, height: 60,
                    transform: `rotate(${robot.dir * 90}deg)`
                  }}>
-              <Rocket className="text-blue-400 drop-shadow-[0_0_10px_rgba(96,165,250,0.8)]" />
+              <div className="bg-slate-800 w-12 h-12 rounded-xl flex items-center justify-center shadow-lg relative">
+                <Rocket size={28} className="text-white" />
+                {crashed && <span className="absolute -top-4 -right-4 text-2xl">💥</span>}
+              </div>
             </div>
           </div>
-          <div className={`mt-6 font-mono text-lg ${status.includes('ACCOMPLISHED') ? 'text-green-400' : status.includes('CRASH') ? 'text-red-400' : 'text-blue-400'}`}>
-            {status || "Awaiting sequence..."}
+          <div className="mt-6 text-center">
+            <span className={`inline-block font-chunky px-4 py-2 rounded-xl border-2 border-slate-800 ${status.includes('ACCOMPLISHED') ? 'bg-green-300' : status.includes('CRASH') ? 'bg-red-300' : 'bg-white'}`}>
+              {status || "Awaiting your code..."}
+            </span>
           </div>
-        </GlassCard>
+        </DoodleCard>
       </div>
     </div>
   );
 };
 
-// Scene 4: Sort Algorithm (Make Tea)
+// Scene 4: Sort Algorithm
 const AlgorithmSortScene = ({ onNext }) => {
   const [steps, setSteps] = useState([
-    { id: 1, text: "Drink tea", order: 5 },
-    { id: 2, text: "Pour water into cup", order: 3 },
-    { id: 3, text: "Boil water", order: 1 },
-    { id: 4, text: "Put teabag in cup", order: 2 },
-    { id: 5, text: "Wait 3 minutes", order: 4 },
+    { id: 1, text: "Drink tea ☕", order: 5 },
+    { id: 2, text: "Pour water in cup 💧", order: 3 },
+    { id: 3, text: "Boil water 🔥", order: 1 },
+    { id: 4, text: "Put teabag in cup 🍵", order: 2 },
+    { id: 5, text: "Wait 3 mins ⏳", order: 4 },
   ]);
   const [success, setSuccess] = useState(false);
 
@@ -372,65 +378,63 @@ const AlgorithmSortScene = ({ onNext }) => {
     if (index === 0) return;
     const newSteps = [...steps];
     [newSteps[index - 1], newSteps[index]] = [newSteps[index], newSteps[index - 1]];
-    setSteps(newSteps);
-    checkSuccess(newSteps);
+    setSteps(newSteps); checkSuccess(newSteps); audio.playPop();
   };
 
   const moveDown = (index) => {
     if (index === steps.length - 1) return;
     const newSteps = [...steps];
     [newSteps[index], newSteps[index + 1]] = [newSteps[index + 1], newSteps[index]];
-    setSteps(newSteps);
-    checkSuccess(newSteps);
+    setSteps(newSteps); checkSuccess(newSteps); audio.playPop();
   };
 
   const checkSuccess = (currentSteps) => {
-    const isSorted = currentSteps.every((step, index) => step.order === index + 1);
-    if (isSorted) {
-      setSuccess(true);
-      audio.playSuccess();
-    } else {
-      setSuccess(false);
-    }
+    if (currentSteps.every((step, index) => step.order === index + 1)) {
+      setSuccess(true); audio.playSuccess();
+    } else setSuccess(false);
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen z-10 relative px-4 w-full max-w-3xl mx-auto">
-      <h2 className="text-3xl font-bold text-white mb-2">Algorithm Lab</h2>
-      <p className="text-gray-400 mb-8 text-center">Algorithms are just sequences of steps.<br/>Arrange these steps in the correct order to make tea.</p>
+    <div className="flex flex-col items-center justify-center min-h-screen relative px-4 w-full max-w-3xl mx-auto animate-bounce-in">
+      <div className="text-center mb-8">
+        <h2 className="text-5xl font-chunky text-slate-800 mb-4"><span className="highlighter-yellow px-2">Algorithm Lab</span> 🧪</h2>
+        <p className="font-hand text-2xl text-slate-600">Algorithms are just sequences of steps.<br/>Sort these to make tea!</p>
+      </div>
 
-      <GlassCard className="w-full">
-        <div className="flex flex-col gap-3">
-          {steps.map((step, index) => (
-            <div key={step.id} className={`flex items-center justify-between p-4 rounded-lg border transition-colors ${success ? 'bg-green-900/30 border-green-500/50' : 'bg-white/5 border-white/10'}`}>
-              <div className="flex items-center gap-4">
-                <span className="text-blue-400 font-mono font-bold w-6">{index + 1}.</span>
-                <span className="text-white text-lg">{step.text}</span>
+      <div className="w-full flex flex-col gap-4">
+        {steps.map((step, index) => (
+          <div key={step.id} className={`flex items-center justify-between p-4 bg-white border-4 rounded-2xl shadow-[4px_4px_0_#1e293b] transition-all duration-300
+            ${success ? 'border-green-500 bg-green-50 scale-[1.02]' : 'border-slate-800 hover:-translate-y-1 hover:shadow-[6px_6px_0_#1e293b]'}`}>
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-slate-800 text-white rounded-full flex items-center justify-center font-chunky text-xl">
+                {index + 1}
               </div>
-              {!success && (
-                <div className="flex gap-2">
-                  <button onClick={() => moveUp(index)} disabled={index === 0} className="p-2 hover:bg-white/10 rounded disabled:opacity-30"><ArrowUp size={18} className="text-gray-300"/></button>
-                  <button onClick={() => moveDown(index)} disabled={index === steps.length - 1} className="p-2 hover:bg-white/10 rounded disabled:opacity-30"><ArrowDown size={18} className="text-gray-300"/></button>
-                </div>
-              )}
+              <span className="font-hand text-2xl font-bold text-slate-800">{step.text}</span>
             </div>
-          ))}
-        </div>
-        
-        {success && (
-          <div className="mt-8 flex flex-col items-center animate-fade-in-up">
-            <div className="flex items-center gap-2 text-green-400 text-xl font-bold mb-4">
-              <CheckCircle2 /> Perfect Algorithm!
-            </div>
-            <Button onClick={onNext}>Next Sequence</Button>
+            {!success && (
+              <div className="flex gap-2">
+                <button onClick={() => moveUp(index)} disabled={index === 0} className="w-10 h-10 bg-pink-100 border-2 border-slate-800 rounded-lg flex items-center justify-center active:bg-pink-300 disabled:opacity-30 disabled:active:bg-pink-100 transition-colors"><ArrowUp className="text-slate-800"/></button>
+                <button onClick={() => moveDown(index)} disabled={index === steps.length - 1} className="w-10 h-10 bg-sky-100 border-2 border-slate-800 rounded-lg flex items-center justify-center active:bg-sky-300 disabled:opacity-30 disabled:active:bg-sky-100 transition-colors"><ArrowDown className="text-slate-800"/></button>
+              </div>
+            )}
           </div>
-        )}
-      </GlassCard>
+        ))}
+      </div>
+      
+      {success && (
+        <div className="mt-12 animate-bounce-in text-center">
+          <p className="font-chunky text-3xl text-green-600 mb-6 bg-green-100 border-4 border-green-500 px-6 py-3 rounded-2xl inline-flex items-center gap-2">
+            <CheckCircle2 size={32} /> Perfect Algorithm!
+          </p>
+          <br/>
+          <DoodleButton onClick={onNext} color="bg-blue-400 text-white">Next Sequence ➡️</DoodleButton>
+        </div>
+      )}
     </div>
   );
 };
 
-// Scene 5: Human vs Computer Visual
+// Scene 5: Human vs Computer
 const HumanVsComputerScene = ({ onNext }) => {
   const numbers = [12, 45, 7, 89, 23, 99, 4, 56];
   const target = 99;
@@ -442,8 +446,10 @@ const HumanVsComputerScene = ({ onNext }) => {
     let i = 0;
     const interval = setInterval(() => {
       setComputerIndex(i);
+      audio.playPop();
       if (numbers[i] === target) {
         clearInterval(interval);
+        audio.playSuccess();
         setTimeout(onNext, 3000);
       }
       i++;
@@ -451,150 +457,144 @@ const HumanVsComputerScene = ({ onNext }) => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen z-10 relative w-full px-4">
-      <h2 className="text-3xl md:text-5xl font-light text-white mb-12 text-center">How Computers Search</h2>
+    <div className="flex flex-col items-center justify-center min-h-screen relative w-full px-4 py-12 animate-bounce-in">
+      <h2 className="text-5xl font-chunky text-slate-800 mb-12 text-center underline decoration-wavy decoration-pink-500 decoration-4 underline-offset-8">
+        How Computers Search 🔍
+      </h2>
       
-      <div className="flex flex-col md:flex-row gap-12 w-full max-w-5xl">
+      <div className="flex flex-col md:flex-row gap-8 w-full max-w-5xl">
         {/* Human Brain */}
-        <GlassCard className="flex-1 flex flex-col items-center p-8">
-          <h3 className="text-2xl text-blue-300 mb-6 font-bold tracking-widest">HUMAN</h3>
-          <p className="text-gray-400 text-center mb-8 h-12">You instantly spot the highest number (99) by looking at the whole picture.</p>
-          <div className="flex flex-wrap gap-2 justify-center">
+        <DoodleCard className="flex-1 flex flex-col items-center bg-pink-50" rotation="-1">
+          <div className="w-20 h-20 bg-pink-300 border-4 border-slate-800 rounded-full flex items-center justify-center shadow-[4px_4px_0_#1e293b] mb-4">
+            <Brain size={40} className="text-slate-800" />
+          </div>
+          <h3 className="text-3xl font-chunky text-slate-800 mb-4">HUMAN</h3>
+          <p className="font-hand text-xl text-slate-600 text-center mb-8 h-16">You instantly spot the highest number (99) by looking at the whole picture.</p>
+          <div className="flex flex-wrap gap-3 justify-center">
             {numbers.map((n, i) => (
-              <div key={i} className={`w-14 h-14 flex items-center justify-center rounded-lg font-bold text-xl ${n === target ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.8)] scale-110' : 'bg-white/10 text-gray-400'}`}>
+              <div key={i} className={`w-16 h-16 flex items-center justify-center rounded-2xl border-4 border-slate-800 font-chunky text-2xl shadow-[2px_2px_0_#1e293b]
+                ${n === target ? 'bg-pink-400 text-white scale-110 rotate-3 shadow-[6px_6px_0_#1e293b]' : 'bg-white text-slate-700'}`}>
                 {n}
               </div>
             ))}
           </div>
-        </GlassCard>
+        </DoodleCard>
 
         {/* Computer Brain */}
-        <GlassCard className="flex-1 flex flex-col items-center p-8">
-          <h3 className="text-2xl text-purple-300 mb-6 font-bold tracking-widest">COMPUTER</h3>
-          <p className="text-gray-400 text-center mb-8 h-12">Computers must check one by one. They are blind to the "whole picture".</p>
-          <div className="flex flex-wrap gap-2 justify-center mb-8">
+        <DoodleCard className="flex-1 flex flex-col items-center bg-sky-50" rotation="1">
+          <div className="w-20 h-20 bg-sky-300 border-4 border-slate-800 rounded-full flex items-center justify-center shadow-[4px_4px_0_#1e293b] mb-4">
+            <Cpu size={40} className="text-slate-800" />
+          </div>
+          <h3 className="text-3xl font-chunky text-slate-800 mb-4">COMPUTER</h3>
+          <p className="font-hand text-xl text-slate-600 text-center mb-8 h-16">Computers must check one by one. They can't see the "whole picture".</p>
+          <div className="flex flex-wrap gap-3 justify-center mb-8">
             {numbers.map((n, i) => (
-              <div key={i} className={`w-14 h-14 flex items-center justify-center rounded-lg font-bold text-xl transition-all duration-300 
-                ${i === computerIndex && n === target ? 'bg-green-500 text-white scale-110 shadow-[0_0_20px_rgba(34,197,94,0.8)]' 
-                : i === computerIndex ? 'bg-purple-600 text-white scale-105' 
-                : 'bg-white/10 text-gray-500'}`}>
+              <div key={i} className={`w-16 h-16 flex items-center justify-center rounded-2xl border-4 border-slate-800 font-chunky text-2xl shadow-[2px_2px_0_#1e293b] transition-all duration-300
+                ${i === computerIndex && n === target ? 'bg-green-400 text-white scale-110 shadow-[6px_6px_0_#1e293b]' 
+                : i === computerIndex ? 'bg-sky-400 text-white scale-105' 
+                : 'bg-white text-slate-300 border-slate-300'}`}>
                 {n}
               </div>
             ))}
           </div>
           {!started ? (
-            <Button onClick={startComputer} variant="secondary">Run Search Algorithm</Button>
+            <DoodleButton onClick={startComputer} color="bg-yellow-300">Run Scan 🤖</DoodleButton>
           ) : (
-            <div className="h-12 flex items-center font-mono text-purple-300">
-              {computerIndex >= 0 ? `Checking index ${computerIndex}... Is ${numbers[computerIndex]} == 99? ${numbers[computerIndex] === target ? 'YES!' : 'NO'}` : ''}
+            <div className="h-12 flex items-center justify-center font-chunky text-lg text-slate-800 bg-white border-2 border-slate-800 rounded-xl px-4 w-full">
+              {computerIndex >= 0 ? `Is ${numbers[computerIndex]} == 99? ${numbers[computerIndex] === target ? 'YES! 🎉' : 'NO ❌'}` : ''}
             </div>
           )}
-        </GlassCard>
+        </DoodleCard>
       </div>
     </div>
   );
 };
 
-// Scene 7: Python Terminal (Hello World & Input)
-const TerminalScene = ({ onNext, setUserData }) => {
-  const [lines, setLines] = useState([{ type: 'output', text: 'Python 3.10.4 initialized.' }]);
+// Scene 7: Python Terminal 
+const TerminalScene = ({ onNext }) => {
+  const [lines, setLines] = useState([{ type: 'output', text: 'Ready to write real code? ✨' }]);
   const [input, setInput] = useState('');
-  const [step, setStep] = useState(0); // 0: print, 1: variable/input
+  const [step, setStep] = useState(0);
   const inputRef = useRef(null);
 
-  useEffect(() => {
-    if (inputRef.current) inputRef.current.focus();
-  }, [lines]);
+  useEffect(() => { if (inputRef.current) inputRef.current.focus(); }, [lines]);
 
   const handleCommand = (e) => {
     if (e.key === 'Enter') {
       const cmd = input.trim();
-      setLines(prev => [...prev, { type: 'input', text: `>>> ${cmd}` }]);
+      setLines(prev => [...prev, { type: 'input', text: `> ${cmd}` }]);
       setInput('');
+      audio.playPop();
 
       if (step === 0) {
         if (cmd === 'print("Hello World")' || cmd === "print('Hello World')") {
           setTimeout(() => {
-            setLines(prev => [...prev, { type: 'output', text: 'Hello World' }]);
-            setStep(1);
-            audio.playSuccess();
-          }, 300);
+            setLines(prev => [...prev, { type: 'output', text: 'Hello World 👋' }]);
+            setStep(1); audio.playSuccess();
+          }, 400);
         } else {
-          setTimeout(() => {
-            setLines(prev => [...prev, { type: 'error', text: 'SyntaxError: Try exact spelling: print("Hello World")' }]);
-          }, 300);
+          setTimeout(() => setLines(prev => [...prev, { type: 'error', text: 'Oops! Type exactly: print("Hello World")' }]), 400);
         }
       } else if (step === 1) {
         if (cmd.startsWith('name = "') || cmd.startsWith("name = '")) {
-          const nameMatch = cmd.match(/name = ["'](.*)["']/);
-          if (nameMatch) {
-            const n = nameMatch[1];
-            setUserData(prev => ({ ...prev, name: n }));
-            setTimeout(() => {
-              setLines(prev => [...prev, { type: 'output', text: `Variable 'name' stored in memory.` }]);
-              setStep(2);
-            }, 300);
-          }
+          setTimeout(() => {
+            setLines(prev => [...prev, { type: 'output', text: `Variable 'name' saved! 📦` }]);
+            setStep(2); audio.playSuccess();
+          }, 400);
         } else {
-            setTimeout(() => {
-              setLines(prev => [...prev, { type: 'error', text: 'Try creating a variable: name = "YourName"' }]);
-            }, 300);
+          setTimeout(() => setLines(prev => [...prev, { type: 'error', text: 'Try: name = "YourName"' }]), 400);
         }
       } else if (step === 2) {
           if (cmd === 'print(name)') {
             setTimeout(() => {
-              setLines(prev => [...prev, { type: 'output', text: 'Welcome to the matrix.' }]);
-              audio.playSuccess();
-              setTimeout(onNext, 2000);
-            }, 300);
+              setLines(prev => [...prev, { type: 'output', text: 'You are now a Programmer! 🎓🎉' }]);
+              audio.playSuccess(); setTimeout(onNext, 2500);
+            }, 400);
           } else {
-             setTimeout(() => {
-              setLines(prev => [...prev, { type: 'error', text: 'Try printing the variable: print(name)' }]);
-            }, 300);
+             setTimeout(() => setLines(prev => [...prev, { type: 'error', text: 'Try: print(name)' }]), 400);
           }
       }
     }
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen z-10 relative px-4 w-full max-w-4xl mx-auto">
+    <div className="flex flex-col items-center justify-center min-h-screen relative px-4 w-full max-w-4xl mx-auto animate-bounce-in">
       <div className="text-center mb-8">
-        <h2 className="text-4xl font-light text-white mb-2">Write Real Code</h2>
-        <p className="text-gray-400">
-          {step === 0 && "Type: print(\"Hello World\")"}
-          {step === 1 && "Create a memory box. Type: name = \"YourName\""}
-          {step === 2 && "Let's use that memory. Type: print(name)"}
-        </p>
+        <h2 className="text-5xl font-chunky text-slate-800 mb-4">Write Real Code! 💻</h2>
+        <div className="font-hand text-2xl text-slate-600 bg-yellow-200 px-6 py-2 rounded-2xl border-4 border-slate-800 inline-block transform rotate-1 shadow-[4px_4px_0_#1e293b]">
+          {step === 0 && "Task 1: Type print(\"Hello World\")"}
+          {step === 1 && "Task 2: Make a variable! Type name = \"YourName\""}
+          {step === 2 && "Task 3: Print it! Type print(name)"}
+        </div>
       </div>
 
-      <GlassCard className="w-full bg-[#0d1117] border-gray-800 p-0 overflow-hidden font-mono text-sm md:text-base">
-        <div className="bg-gray-900 px-4 py-2 border-b border-gray-800 flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-red-500"></div>
-          <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-          <div className="w-3 h-3 rounded-full bg-green-500"></div>
-          <span className="ml-4 text-gray-500 text-xs">main.py</span>
-        </div>
-        <div className="p-6 h-[400px] overflow-y-auto flex flex-col">
-          {lines.map((l, i) => (
-            <div key={i} className={`mb-2 ${l.type === 'input' ? 'text-gray-300' : l.type === 'error' ? 'text-red-400' : 'text-green-400'}`}>
-              {l.text}
+      {/* Cute Laptop UI */}
+      <div className="w-full max-w-2xl bg-white border-8 border-slate-800 rounded-3xl p-2 shadow-[12px_12px_0_#1e293b]">
+        <div className="bg-slate-100 border-4 border-slate-800 rounded-2xl overflow-hidden font-mono text-lg">
+          {/* Top Bar */}
+          <div className="bg-slate-800 px-4 py-3 border-b-4 border-slate-800 flex items-center gap-2">
+            <div className="w-4 h-4 rounded-full border-2 border-slate-800 bg-red-400"></div>
+            <div className="w-4 h-4 rounded-full border-2 border-slate-800 bg-yellow-400"></div>
+            <div className="w-4 h-4 rounded-full border-2 border-slate-800 bg-green-400"></div>
+            <span className="ml-4 text-white font-chunky tracking-widest text-sm">MY_FIRST_CODE.PY</span>
+          </div>
+          {/* Editor Area */}
+          <div className="p-6 h-[350px] overflow-y-auto flex flex-col bg-slate-50 text-slate-800">
+            {lines.map((l, i) => (
+              <div key={i} className={`mb-3 font-bold ${l.type === 'input' ? 'text-slate-500' : l.type === 'error' ? 'text-red-500' : 'text-blue-600'}`}>
+                {l.text}
+              </div>
+            ))}
+            <div className="flex items-center mt-2 font-bold">
+              <span className="mr-2 text-pink-500 animate-pulse">{">"}</span>
+              <input 
+                ref={inputRef} type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleCommand}
+                className="bg-transparent outline-none flex-1 text-slate-800" spellCheck="false" autoComplete="off"
+              />
             </div>
-          ))}
-          <div className="flex items-center text-gray-300 mt-2">
-            <span className="mr-2 text-blue-400">{">>>"}</span>
-            <input 
-              ref={inputRef}
-              type="text" 
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleCommand}
-              className="bg-transparent outline-none flex-1 font-mono text-gray-300"
-              spellCheck="false"
-              autoComplete="off"
-            />
           </div>
         </div>
-      </GlassCard>
+      </div>
     </div>
   );
 };
@@ -602,61 +602,67 @@ const TerminalScene = ({ onNext, setUserData }) => {
 // Scene: Powers
 const PowersScene = ({ onNext }) => {
   const powers = [
-    { icon: <Globe size={40}/>, title: "Build the Web", desc: "Create interactive worlds." },
-    { icon: <Cpu size={40}/>, title: "Create AI", desc: "Teach machines to think." },
-    { icon: <Code2 size={40}/>, title: "Hack Logic", desc: "Solve complex puzzles instantly." }
+    { icon: <Globe size={48}/>, title: "Build the Web", desc: "Create interactive worlds.", color: "bg-sky-200" },
+    { icon: <Cpu size={48}/>, title: "Create AI", desc: "Teach machines to think.", color: "bg-pink-200" },
+    { icon: <Code2 size={48}/>, title: "Hack Logic", desc: "Solve puzzles instantly.", color: "bg-lime-200" }
   ];
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen z-10 relative px-4 w-full">
-      <h2 className="text-4xl md:text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 mb-16">
-        What Will You Build?
+    <div className="flex flex-col items-center justify-center min-h-screen relative px-4 w-full animate-bounce-in">
+      <h2 className="text-5xl md:text-6xl font-chunky text-slate-800 mb-16 text-center">
+        With coding, you can... 🌟
       </h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl mb-16">
         {powers.map((p, i) => (
-          <GlassCard key={i} className="flex flex-col items-center text-center p-10 hover:-translate-y-2 transition-transform duration-300 group">
-            <div className="text-blue-400 mb-6 group-hover:scale-110 transition-transform duration-300 drop-shadow-[0_0_15px_rgba(96,165,250,0.5)]">
+          <DoodleCard key={i} className={`flex flex-col items-center text-center ${p.color}`} rotation={i === 1 ? "2" : "-2"}>
+            <div className="bg-white border-4 border-slate-800 p-4 rounded-full mb-6 shadow-[4px_4px_0_#1e293b]">
               {p.icon}
             </div>
-            <h3 className="text-2xl font-bold text-white mb-4">{p.title}</h3>
-            <p className="text-gray-400">{p.desc}</p>
-          </GlassCard>
+            <h3 className="text-3xl font-chunky text-slate-800 mb-4">{p.title}</h3>
+            <p className="font-hand text-xl text-slate-700">{p.desc}</p>
+          </DoodleCard>
         ))}
       </div>
-      <Button onClick={onNext} className="px-12 py-4 text-xl">PROVE YOUR SKILLS</Button>
+      <DoodleButton onClick={onNext} color="bg-yellow-300 text-slate-800" className="px-12 py-4 text-2xl">
+        FINAL CHALLENGE ⚔️
+      </DoodleButton>
     </div>
   );
 }
 
-// Scene: Final Checklist
+// Scene: Outro
 const OutroScene = () => {
   return (
-    <div className="flex flex-col items-center justify-center h-screen z-10 relative px-4 text-center">
-      <h1 className="text-4xl md:text-6xl font-light text-white mb-12">Journey Complete</h1>
+    <div className="flex flex-col items-center justify-center min-h-screen relative px-4 text-center animate-bounce-in">
+      <Sticker emoji="A+" color="bg-lime-300 text-5xl font-chunky" className="top-10 left-10 md:top-20 md:left-40 w-24 h-24" />
+      <Sticker emoji="🎉" color="bg-yellow-300" className="top-20 right-10 md:top-20 md:right-40" />
       
-      <GlassCard className="max-w-2xl w-full mb-12 text-left bg-black/60">
-        <h3 className="text-2xl text-blue-400 mb-6 border-b border-white/10 pb-4">Today you learned:</h3>
-        <ul className="space-y-4 text-lg text-gray-300">
-          <li className="flex items-center gap-4 animate-fade-in-up" style={{animationDelay: '100ms'}}>
-            <CheckCircle2 className="text-green-500" /> Computers need exact instructions
+      <h1 className="text-6xl md:text-8xl font-chunky text-slate-800 mb-8 transform -rotate-2">
+        <span className="highlighter-yellow px-4">YOU DID IT!</span> 🎓
+      </h1>
+      
+      <DoodleCard className="max-w-2xl w-full mb-12 text-left bg-white" rotation="1">
+        <h3 className="text-3xl font-chunky text-pink-500 mb-6 border-b-4 border-slate-200 pb-4">Study Notes:</h3>
+        <ul className="space-y-6 font-hand text-2xl text-slate-700">
+          <li className="flex items-center gap-4">
+            <span className="bg-green-100 rounded-full p-1 border-2 border-slate-800"><CheckCircle2 className="text-green-600" /></span> 
+            Computers need exact instructions
           </li>
-          <li className="flex items-center gap-4 animate-fade-in-up" style={{animationDelay: '300ms'}}>
-            <CheckCircle2 className="text-green-500" /> Algorithms are just step-by-step logic
+          <li className="flex items-center gap-4">
+            <span className="bg-green-100 rounded-full p-1 border-2 border-slate-800"><CheckCircle2 className="text-green-600" /></span> 
+            Algorithms are step-by-step logic
           </li>
-          <li className="flex items-center gap-4 animate-fade-in-up" style={{animationDelay: '500ms'}}>
-            <CheckCircle2 className="text-green-500" /> Debugging is finding and fixing errors
-          </li>
-          <li className="flex items-center gap-4 animate-fade-in-up" style={{animationDelay: '700ms'}}>
-            <CheckCircle2 className="text-green-500" /> Your first lines of Python code
+          <li className="flex items-center gap-4">
+            <span className="bg-green-100 rounded-full p-1 border-2 border-slate-800"><CheckCircle2 className="text-green-600" /></span> 
+            Debugging is fixing errors (squashing bugs 🐛)
           </li>
         </ul>
-      </GlassCard>
+      </DoodleCard>
 
-      <div className="animate-fade-in-up" style={{animationDelay: '1500ms'}}>
-        <p className="text-2xl text-white font-light mb-8 italic">The future belongs to builders.</p>
-        <Button onClick={() => window.location.reload()} variant="primary" className="text-xl px-10 py-4 shadow-[0_0_40px_rgba(79,70,229,0.6)]">
-          START PYTHON COURSE
-        </Button>
+      <div className="animate-bounce-in" style={{animationDelay: '0.5s'}}>
+        <DoodleButton onClick={() => window.location.reload()} color="bg-blue-500 text-white" className="text-2xl px-12 py-6">
+          START PYTHON COURSE 🐍
+        </DoodleButton>
       </div>
     </div>
   )
@@ -665,56 +671,48 @@ const OutroScene = () => {
 // --- MAIN APP CONTROLLER ---
 export default function App() {
   const [scene, setScene] = useState(0);
-  const [transitioning, setTransitioning] = useState(false);
-  const [userData, setUserData] = useState({ name: 'Coder' });
+  const [transitionState, setTransitionState] = useState('in');
+
+  useEffect(() => { injectStyles(); }, []);
 
   const nextScene = () => {
-    setTransitioning(true);
+    setTransitionState('out');
     setTimeout(() => {
       setScene(s => s + 1);
-      setTransitioning(false);
-    }, 600); // Wait for fade out
+      setTransitionState('in');
+      window.scrollTo(0,0);
+    }, 400); 
   };
 
-  const handleBegin = () => {
-    audio.start();
-    nextScene();
-  }
-
-  // Scene definitions
   const renderScene = () => {
     switch (scene) {
-      case 0: return <IntroScene onNext={handleBegin} />;
+      case 0: return <IntroScene onNext={nextScene} />;
       case 1: return <RobotSandwichScene onNext={nextScene} />;
       case 2: return <GridWorld 
                         title="Your First Algorithm" 
-                        desc="Write commands to guide the rover to the data crystal."
+                        desc="Write commands to guide the rover to the star!"
                         gridSize={5} 
-                        startPos={{x: 0, y: 4}} 
-                        endPos={{x: 4, y: 0}} 
+                        startPos={{x: 0, y: 4}} endPos={{x: 4, y: 0}} 
                         onComplete={nextScene} 
                       />;
       case 3: return <AlgorithmSortScene onNext={nextScene} />;
       case 4: return <HumanVsComputerScene onNext={nextScene} />;
       case 5: return <GridWorld 
-                        title="Debugging" 
-                        desc="The code has a bug. It will crash into the asteroid. Fix it!"
+                        title="Find the Bug!" 
+                        desc="The code crashes into the wall. Fix it to reach the star!"
                         gridSize={5} 
-                        startPos={{x: 0, y: 2}} 
-                        endPos={{x: 4, y: 2}} 
-                        obstacles={[{x: 2, y: 2}]}
-                        initialDir={1}
-                        prefilledCode="move forward\nmove forward\nmove forward\nmove forward" // This will hit the obstacle
-                        onComplete={nextScene} 
+                        startPos={{x: 0, y: 2}} endPos={{x: 4, y: 2}} 
+                        obstacles={[{x: 2, y: 2}]} initialDir={1}
+                        prefilledCode="move forward\nmove forward\nmove forward\nmove forward" 
+                        onComplete={nextScene} isBugged={true}
                       />;
-      case 6: return <TerminalScene onNext={nextScene} setUserData={setUserData} />;
+      case 6: return <TerminalScene onNext={nextScene} />;
       case 7: return <PowersScene onNext={nextScene} />;
       case 8: return <GridWorld 
-                        title="Boss Battle" 
+                        title="Boss Battle!" 
                         desc="Navigate the maze. Write the complete sequence."
                         gridSize={6} 
-                        startPos={{x: 0, y: 5}} 
-                        endPos={{x: 5, y: 0}} 
+                        startPos={{x: 0, y: 5}} endPos={{x: 5, y: 0}} 
                         obstacles={[{x: 1, y: 5}, {x: 1, y: 4}, {x: 3, y: 3}, {x: 3, y: 2}, {x: 3, y: 1}, {x: 4, y: 3}]}
                         initialDir={1}
                         onComplete={nextScene} 
@@ -724,51 +722,22 @@ export default function App() {
     }
   };
 
-  // Add styles dynamically for animations
-  useEffect(() => {
-    const style = document.createElement('style');
-    style.innerHTML = `
-      @keyframes fadeInUp {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      .animate-fade-in-up {
-        animation: fadeInUp 0.8s ease-out forwards;
-      }
-      @keyframes shake {
-        0%, 100% { transform: translateX(0) scale(1.1); }
-        25% { transform: translateX(-5px) scale(1.1); }
-        75% { transform: translateX(5px) scale(1.1); }
-      }
-      .animate-shake {
-        animation: shake 0.3s ease-in-out 2;
-      }
-      .scene-transition {
-        transition: opacity 0.6s ease-in-out;
-      }
-      .opacity-0 { opacity: 0; }
-      .opacity-100 { opacity: 1; }
-    `;
-    document.head.appendChild(style);
-    return () => document.head.removeChild(style);
-  }, []);
-
   return (
-    <div className="min-h-screen bg-[#050510] text-slate-100 font-sans overflow-hidden selection:bg-blue-500/30">
-      <Starfield />
+    <div className="min-h-screen text-slate-900 overflow-hidden font-chunky">
       
-      {/* Progress Bar */}
+      {/* Doodle Progress Bar */}
       {scene > 0 && scene < 9 && (
-        <div className="fixed top-0 left-0 w-full h-1 bg-white/10 z-50">
+        <div className="fixed top-0 left-0 w-full h-4 bg-white border-b-4 border-slate-800 z-50 overflow-hidden">
           <div 
-            className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-1000 ease-out"
+            className="h-full bg-pink-400 transition-all duration-1000 ease-out flex items-center justify-end pr-1"
             style={{ width: `${(scene / 8) * 100}%` }}
-          />
+          >
+             <div className="w-2 h-2 bg-white rounded-full"></div>
+          </div>
         </div>
       )}
 
-      {/* Main Content Area */}
-      <main className={`scene-transition ${transitioning ? 'opacity-0' : 'opacity-100'}`}>
+      <main className={`scene-transition ${transitionState === 'out' ? 'scene-out' : 'scene-in'}`}>
         {renderScene()}
       </main>
     </div>
