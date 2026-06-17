@@ -308,7 +308,7 @@ const GridWorld = ({ title, desc, gridSize = 5, startPos, endPos, obstacles = []
           />
           
           <div className="mt-6 flex justify-between items-center">
-            <button onClick={() => setCode('')} className="font-chunky text-slate-600 underline">Clear</button>
+            <button onClick={() => { setCode(''); setRobot({ ...startPos, dir: initialDir }); setStatus(''); setCrashed(false); setIsRunning(false); }} className="font-chunky text-slate-600 underline">Clear</button>
             <DoodleButton onClick={runCode} disabled={isRunning} color={isRunning ? "bg-slate-300" : "bg-green-400"} className="px-6 py-2 text-lg">
               {isRunning ? 'Running...' : 'RUN CODE 🚀'}
             </DoodleButton>
@@ -347,7 +347,7 @@ const GridWorld = ({ title, desc, gridSize = 5, startPos, endPos, obstacles = []
                    transform: `rotate(${robot.dir * 90}deg)`
                  }}>
               <div className="bg-slate-800 w-12 h-12 rounded-xl flex items-center justify-center shadow-lg relative">
-                <Rocket size={28} className="text-white" />
+                <ArrowUp size={28} className="text-white" />
                 {crashed && <span className="absolute -top-4 -right-4 text-2xl">💥</span>}
               </div>
             </div>
