@@ -366,13 +366,14 @@ const GridWorld = ({ title, desc, gridSize = 5, startPos, endPos, obstacles = []
 // Scene 4: Sort Algorithm
 const AlgorithmSortScene = ({ onNext }) => {
   const [steps, setSteps] = useState([
-    { id: 1, text: "Drink tea ☕", order: 5 },
-    { id: 2, text: "Pour water in cup 💧", order: 3 },
-    { id: 3, text: "Boil water 🔥", order: 1 },
-    { id: 4, text: "Put teabag in cup 🍵", order: 2 },
-    { id: 5, text: "Wait 3 mins ⏳", order: 4 },
+    { id: 1, text: "Eat the sandwich 😋", order: 5 },
+    { id: 2, text: "Spread peanut butter 🥜", order: 2 },
+    { id: 3, text: "Take two slices of bread 🍞", order: 1 },
+    { id: 4, text: "Spread jelly 🍓", order: 3 },
+    { id: 5, text: "Put slices together 🥪", order: 4 },
   ]);
   const [success, setSuccess] = useState(false);
+  const [draggedIdx, setDraggedIdx] = useState(null);
 
   const moveUp = (index) => {
     if (index === 0) return;
@@ -388,6 +389,32 @@ const AlgorithmSortScene = ({ onNext }) => {
     setSteps(newSteps); checkSuccess(newSteps); audio.playPop();
   };
 
+  const handleDragStart = (e, index) => {
+    if (success) return;
+    setDraggedIdx(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e) => {
+    if (success) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = (e, index) => {
+    if (success) return;
+    e.preventDefault();
+    if (draggedIdx === null || draggedIdx === index) return;
+    const newSteps = [...steps];
+    const draggedItem = newSteps[draggedIdx];
+    newSteps.splice(draggedIdx, 1);
+    newSteps.splice(index, 0, draggedItem);
+    setSteps(newSteps);
+    setDraggedIdx(null);
+    checkSuccess(newSteps);
+    audio.playPop();
+  };
+
   const checkSuccess = (currentSteps) => {
     if (currentSteps.every((step, index) => step.order === index + 1)) {
       setSuccess(true); audio.playSuccess();
@@ -398,14 +425,22 @@ const AlgorithmSortScene = ({ onNext }) => {
     <div className="flex flex-col items-center justify-center min-h-screen relative px-4 w-full max-w-3xl mx-auto animate-bounce-in">
       <div className="text-center mb-8">
         <h2 className="text-5xl font-chunky text-slate-800 mb-4"><span className="highlighter-yellow px-2">Algorithm Lab</span> 🧪</h2>
-        <p className="font-hand text-2xl text-slate-600">Algorithms are just sequences of steps.<br/>Sort these to make tea!</p>
+        <p className="font-hand text-2xl text-slate-600">Algorithms are just sequences of steps.<br/>Drag & drop or use arrows to make a sandwich!</p>
       </div>
 
       <div className="w-full flex flex-col gap-4">
         {steps.map((step, index) => (
-          <div key={step.id} className={`flex items-center justify-between p-4 bg-white border-4 rounded-2xl shadow-[4px_4px_0_#1e293b] transition-all duration-300
-            ${success ? 'border-green-500 bg-green-50 scale-[1.02]' : 'border-slate-800 hover:-translate-y-1 hover:shadow-[6px_6px_0_#1e293b]'}`}>
-            <div className="flex items-center gap-4">
+          <div 
+            key={step.id} 
+            draggable={!success}
+            onDragStart={(e) => handleDragStart(e, index)}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, index)}
+            className={`flex items-center justify-between p-4 bg-white border-4 rounded-2xl shadow-[4px_4px_0_#1e293b] transition-all duration-300 ${!success ? 'cursor-grab active:cursor-grabbing' : ''}
+            ${success ? 'border-green-500 bg-green-50 scale-[1.02]' : 'border-slate-800 hover:-translate-y-1 hover:shadow-[6px_6px_0_#1e293b]'}
+            ${draggedIdx === index ? 'opacity-50' : ''}`}
+          >
+            <div className="flex items-center gap-4 pointer-events-none">
               <div className="w-10 h-10 bg-slate-800 text-white rounded-full flex items-center justify-center font-chunky text-xl">
                 {index + 1}
               </div>
