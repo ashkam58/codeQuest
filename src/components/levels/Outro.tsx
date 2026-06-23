@@ -4,7 +4,7 @@ import { CheckCircle2, Code2 } from 'lucide-react';
 import { useGame } from '../../context/GameContext';
 
 export const Outro: React.FC = () => {
-  const { xp, unlockedBadges } = useGame();
+  const { xp, unlockedBadges, setLevel } = useGame();
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen relative px-4 py-12 text-center animate-bounce-in pt-24">
@@ -53,7 +53,10 @@ export const Outro: React.FC = () => {
         </ul>
       </DoodleCard>
 
-      <div className="animate-bounce-in flex gap-4" style={{animationDelay: '0.5s'}}>
+      <div className="animate-bounce-in flex flex-col md:flex-row gap-4" style={{animationDelay: '0.5s'}}>
+        <DoodleButton onClick={() => setLevel(0)} color="bg-purple-300 text-slate-800" className="text-2xl px-12 py-6">
+          Return Home 🏠
+        </DoodleButton>
         <DoodleButton onClick={() => window.location.reload()} color="bg-blue-500 text-white" className="text-2xl px-12 py-6">
           Start HTML Course 🚀
         </DoodleButton>
