@@ -19,19 +19,21 @@ export const Level9: React.FC<{ onComplete: () => void }> = ({ onComplete }) => 
       audio.playPop();
 
       if (step === 0) {
-        if (cmd === 'print("Hello World")' || cmd === "print('Hello World')") {
+        // Regex to match print("Hello World") with optional spaces and case insensitive inside quotes
+        if (/^print\s*\(\s*["']hello\s*world["']\s*\)$/i.test(cmd)) {
           setTimeout(() => {
             setLines(prev => [...prev, { type: 'output', text: 'Hello World 👋' }]);
             setStep(1); audio.playSuccess();
           }, 400);
         } else {
           setTimeout(() => {
-            setLines(prev => [...prev, { type: 'error', text: 'Oops! Type exactly: print("Hello World")' }]);
+            setLines(prev => [...prev, { type: 'error', text: 'Oops! Try exactly: print("Hello World")' }]);
             audio.playError();
           }, 400);
         }
       } else if (step === 1) {
-        if (cmd.startsWith('name = "') || cmd.startsWith("name = '")) {
+        // Regex to match name = "Anything"
+        if (/^name\s*=\s*["'][^"']*["']$/.test(cmd)) {
           setTimeout(() => {
             setLines(prev => [...prev, { type: 'output', text: `Variable 'name' saved! 📦` }]);
             setStep(2); audio.playSuccess();
@@ -43,9 +45,10 @@ export const Level9: React.FC<{ onComplete: () => void }> = ({ onComplete }) => 
           }, 400);
         }
       } else if (step === 2) {
-          if (cmd === 'print(name)') {
+          if (/^print\s*\(\s*name\s*\)$/.test(cmd)) {
             setTimeout(() => {
               setLines(prev => [...prev, { type: 'output', text: 'You are now a Python Programmer! 🐍🎓' }]);
+              setStep(3);
               audio.playSuccess(); 
               unlockBadge('python_explorer');
             }, 400);
