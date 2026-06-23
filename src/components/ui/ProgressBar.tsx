@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useGame } from '../../context/GameContext';
 import { BADGE_REGISTRY } from '../../types';
-import { Star, Medal, X } from 'lucide-react';
+import { Star, Medal, X, Home } from 'lucide-react';
 import { audio } from './DoodleUI';
 
 export const ProgressBar: React.FC = () => {
-  const { xp, level, unlockedBadges } = useGame();
+  const { xp, level, unlockedBadges, setLevel } = useGame();
   const [showBadges, setShowBadges] = useState(false);
 
   return (
@@ -15,6 +15,14 @@ export const ProgressBar: React.FC = () => {
         <div className="w-full h-16 bg-white/90 backdrop-blur-sm border-b-4 border-slate-800 flex items-center justify-between px-4 md:px-8 pointer-events-auto shadow-[0_4px_0_#1e293b]">
           
           <div className="flex items-center gap-4">
+            <button 
+              onClick={() => { audio.playPop(); setLevel(0); }}
+              className="bg-purple-300 border-2 border-slate-800 rounded-xl px-3 py-1 flex items-center justify-center font-chunky shadow-[2px_2px_0_#1e293b] hover:-translate-y-0.5 transition-transform active:translate-y-0.5 active:shadow-none"
+              title="Return to Home"
+            >
+              <Home size={20} className="text-slate-800" />
+            </button>
+
             <div className="bg-yellow-300 border-2 border-slate-800 rounded-xl px-4 py-1 flex items-center gap-2 font-chunky shadow-[2px_2px_0_#1e293b]">
               <Star size={20} className="text-slate-800 fill-slate-800" />
               <span className="text-xl">{xp} XP</span>

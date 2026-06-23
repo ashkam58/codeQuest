@@ -42,7 +42,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const setLevel = (level: number) => {
-    setData(prev => ({ ...prev, level: Math.max(prev.level, level) }));
+    setData(prev => ({ ...prev, level }));
   };
 
   const unlockBadge = (badgeId: string) => {
